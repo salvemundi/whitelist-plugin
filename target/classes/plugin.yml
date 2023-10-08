@@ -1,0 +1,8 @@
+name: whitelist
+version: '1.0-SNAPSHOT'
+main: nl.salvemundi.plugins.Whitelist
+api-version: '1.20'
+commands:
+  get-whitelist-samu:
+    description: Get the whitelist with all mc usernames.
+    usage: /get-whitelist-samu
