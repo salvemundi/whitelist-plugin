@@ -3,15 +3,11 @@ package nl.salvemundi.plugins;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import java.util.logging.Level;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
-import org.bukkit.command.Command;
-import org.bukkit.command.CommandExecutor;
-import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
-import org.jetbrains.annotations.NotNull;
+import org.bukkit.scheduler.BukkitRunnable;
 
 import java.io.BufferedReader;
 import java.io.DataOutputStream;
@@ -22,59 +18,18 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
-public class WhitelistCommandExecutor implements CommandExecutor {
+public class SyncTask extends BukkitRunnable {
 
     private FileConfiguration config;
     private Logger logger;
-    public WhitelistCommandExecutor(FileConfiguration config, Logger logger) {
+    public SyncTask(FileConfiguration config, Logger logger) {
         this.config = config;
         this.logger = logger;
     }
 
-    @Override
-    public boolean onCommand(@NotNull CommandSender commandSender, @NotNull Command command, @NotNull String s, @NotNull String[] strings) {
-        if(commandSender instanceof Player) {
-            Player p = (Player) commandSender;
-            p.sendMessage("[SaMu] Whitelist wordt opgevraagd...");
-            try {
-                String data = this.getData(p);
-                try {
-                    Gson gson = new Gson();
-
-                    // Convert the JSON string to a String array
-                    String[] stringArray = gson.fromJson(data, String[].class);
-                    if(stringArray == null) {
-                        return true;
-                    }
-                    OfflinePlayer[] currentWhiteList = Bukkit.getWhitelistedPlayers().toArray(new OfflinePlayer[0]);
-                    for (OfflinePlayer player : currentWhiteList) {
-                        String playerName = player.getName();
-
-                        // Check if the player's name is not in the stringArray
-                        if (!containsPlayer(stringArray, playerName)) {
-                            player.setWhitelisted(false); // Remove the player from the whitelist
-                        }
-                    }
-                    for (String item : stringArray) {
-                        p.sendMessage(item);
-                        OfflinePlayer player = Bukkit.getOfflinePlayer(item);
-
-                        player.setWhitelisted(true);
-                    }
-
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            } catch (Exception e) {
-                logger.log(Level.SEVERE,"Something went wrong retrieving the data!");
-
-            }
-            return true;
-        }
-        return false;
-    }
     private boolean containsPlayer(String[] array, String playerName) {
         for (String item : array) {
             if (item.equals(playerName)) {
@@ -83,7 +38,6 @@ public class WhitelistCommandExecutor implements CommandExecutor {
         }
         return false;
     }
-
     private String getAccessToken() {
         // Define your OAuth token endpoint URL and client credentials
         String tokenUrl = config.getString("salvemundi_url") + "/oauth/token";
@@ -158,7 +112,7 @@ public class WhitelistCommandExecutor implements CommandExecutor {
         }
         return null;
     }
-    private String getData(Player player) throws IOException {
+    private String getData() throws IOException {
         URL url = null;
         try {
             // Assuming config.get("salvemundi_url") and config.get("salvemundi_endpoint") are valid URLs
@@ -186,7 +140,8 @@ public class WhitelistCommandExecutor implements CommandExecutor {
                 in.close();
                 return response.toString();
             } else {
-                player.sendMessage("[SaMu] Het ophalen van minecraft users is mislukt, is de authenticatie correct ingesteld?");
+                logger.log(Level.SEVERE,"Something went wrong retrieving the data!");
+
             }
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -196,5 +151,39 @@ public class WhitelistCommandExecutor implements CommandExecutor {
             }
         }
         return null;
+    }
+    @Override
+    public void run() {
+        try {
+            String data = this.getData();
+            try {
+                Gson gson = new Gson();
+
+                // Convert the JSON string to a String array
+                String[] stringArray = gson.fromJson(data, String[].class);
+                if(stringArray == null) {
+                    return;
+                }
+                OfflinePlayer[] currentWhiteList = Bukkit.getWhitelistedPlayers().toArray(new OfflinePlayer[0]);
+                for (OfflinePlayer player : currentWhiteList) {
+                    String playerName = player.getName();
+
+                    // Check if the player's name is not in the stringArray
+                    if (!containsPlayer(stringArray, playerName)) {
+                        player.setWhitelisted(false); // Remove the player from the whitelist
+                    }
+                }
+                for (String item : stringArray) {
+                    OfflinePlayer player = Bukkit.getOfflinePlayer(item);
+
+                    player.setWhitelisted(true);
+                }
+
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        } catch (Exception e) {
+            logger.log(Level.SEVERE,"Something went wrong retrieving the data!");
+        }
     }
 }
